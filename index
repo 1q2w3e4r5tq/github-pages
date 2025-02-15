@@ -1,0 +1,208 @@
+<script>
+    // Имитация Telegram WebApp API для тестирования в браузере
+    if (typeof Telegram === 'undefined' || !Telegram.WebApp) {
+        window.Telegram = {
+            WebApp: {
+                initData: '',
+                initDataUnsafe: {},
+                MainButton: {
+                    setText: function(text) { console.log('MainButton text:', text) },
+                    show: function() { console.log('MainButton shown') },
+                    hide: function() { console.log('MainButton hidden') },
+                    onClick: function(callback) { this.clickCallback = callback }
+                },
+                sendData: function(data) {
+                    console.log('Data sent to bot:', data);
+                    alert('Данные сохранены (тестовый режим): ' + data);
+                },
+                close: function() { console.log('WebApp closed') },
+                expand: function() { console.log('WebApp expanded') },
+                ready: function() { console.log('WebApp ready') },
+                showAlert: function(msg) { alert(msg) }
+            }
+        };
+    }
+
+    // Основные переменные игры
+    const tg = window.Telegram.WebApp;
+    let score = 0;
+    let clickPower = 1;
+    let autoClickerPower = 0;
+    let autoClickInterval = null;
+
+    // Кэширование DOM-элементов
+    const elements = {
+        clickButton: document.getElementById('clickButton'),
+        scoreElement: document.getElementById('score'),
+        upgrades: document.querySelectorAll('.upgrade'),
+        autoClickerBtn: document.querySelector('.auto-clicker'),
+        shop: document.querySelector('.shop')
+    };
+
+    // Инициализация игры
+    function initGame() {
+        checkDOMElements();
+        loadProgress();
+        setupEventListeners();
+        initTelegramFeatures();
+        updateUI();
+        startAutoClicker();
+    }
+
+    // Проверка наличия необходимых элементов
+    function checkDOMElements() {
+        Object.entries(elements).forEach(([name, element]) => {
+            if (!element) console.error(`Элемент ${name} не найден!`);
+        });
+    }
+
+    // Загрузка сохраненного прогресса
+    function loadProgress() {
+        try {
+            const savedData = localStorage.getItem('clickerProgress');
+            if (savedData) {
+                const { score: savedScore, power, auto } = JSON.parse(savedData);
+                score = savedScore || 0;
+                clickPower = power || 1;
+                autoClickerPower = auto || 0;
+            }
+        } catch (e) {
+            console.error('Ошибка загрузки:', e);
+        }
+    }
+
+    // Сохранение прогресса
+    function saveProgress() {
+        const progressData = {
+            score,
+            power: clickPower,
+            auto: autoClickerPower
+        };
+        localStorage.setItem('clickerProgress', JSON.stringify(progressData));
+    }
+
+    // Настройка обработчиков событий
+    function setupEventListeners() {
+        // Основной клик
+        elements.clickButton?.addEventListener('click', handleClick);
+        
+        // Улучшения
+        elements.upgrades?.forEach(btn => {
+            btn.addEventListener('click', handleUpgrade);
+        });
+
+        // Автокликер
+        elements.autoClickerBtn?.addEventListener('click', buyAutoClicker);
+    }
+
+    // Инициализация функций Telegram
+    function initTelegramFeatures() {
+        if (tg.initDataUnsafe.user) {
+            tg.expand();
+            tg.ready();
+            tg.MainButton.setText("Сохранить и выйти").show();
+            tg.MainButton.onClick(handleSave);
+        }
+    }
+
+    // Обработка основного клика
+    function handleClick() {
+        score += clickPower;
+        animateButton();
+        updateUI();
+    }
+
+    // Покупка улучшения
+    function handleUpgrade() {
+        const cost = parseInt(this.dataset.cost);
+        const power = parseInt(this.dataset.power);
+
+        if (score >= cost) {
+            score -= cost;
+            clickPower += power;
+            this.classList.add('purchased');
+            updateUI();
+            showEffect(this);
+        }
+    }
+
+    // Покупка автокликера
+    function buyAutoClicker() {
+        const cost = 1000;
+        if (score >= cost) {
+            score -= cost;
+            autoClickerPower += 5;
+            updateUI();
+            showEffect(elements.autoClickerBtn);
+        }
+    }
+
+    // Автоматическое кликание
+    function startAutoClicker() {
+        if (autoClickerPower > 0 && !autoClickInterval) {
+            autoClickInterval = setInterval(() => {
+                score += autoClickerPower;
+                updateUI();
+            }, 1000);
+        }
+    }
+
+    // Обновление интерфейса
+    function updateUI() {
+        // Обновление счета
+        elements.scoreElement.textContent = `Счет: ${score}`;
+        
+        // Обновление кнопок улучшений
+        elements.upgrades?.forEach(btn => {
+            const cost = parseInt(btn.dataset.cost);
+            btn.disabled = score < cost;
+        });
+
+        // Сохранение прогресса
+        saveProgress();
+    }
+
+    // Анимация кнопки
+    function animateButton() {
+        elements.clickButton.style.transform = 'scale(0.95)';
+        setTimeout(() => {
+            elements.clickButton.style.transform = 'scale(1)';
+        }, 100);
+    }
+
+    // Визуальный эффект при покупке
+    function showEffect(element) {
+        element.style.transform = 'scale(1.1)';
+        setTimeout(() => {
+            element.style.transform = 'scale(1)';
+        }, 200);
+    }
+
+    // Сохранение и выход
+    function handleSave() {
+        tg.sendData(JSON.stringify({
+            score,
+            power: clickPower,
+            auto: autoClickerPower
+        }));
+        tg.close();
+    }
+
+    // Запуск игры при полной загрузке
+    if (document.readyState === 'complete') {
+        initGame();
+    } else {
+        document.addEventListener('DOMContentLoaded', initGame);
+    }
+
+    // Экспорт для тестирования
+    if (typeof module !== 'undefined') {
+        module.exports = {
+            score,
+            clickPower,
+            autoClickerPower,
+            handleClick,
+            handleUpgrade
+        };
+    }
+</script>
